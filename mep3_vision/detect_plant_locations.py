@@ -157,8 +157,8 @@ while True:
     for l in range(total_plant_areas):
         cv2.circle(location_masks[l], location_coords[l], plant_area_radius, (255, 255, 255), -1)
         location_mask_int32 = location_masks[l].astype(np.int32)
-        test = cv2.multiply(plant_map_int32, location_mask_int32)
-        print(np.sum(test))
+        #test = cv2.multiply(plant_map_int32, location_mask_int32)
+        #print(np.sum(test))
         area = np.sum(cv2.multiply(plant_map_int32, location_mask_int32)) / (255 * 255)
         areas.append(area)
 
