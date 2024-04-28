@@ -103,7 +103,7 @@ def get_area_occupancy(new_area_counts, running_area_counts, occupancy_map_int32
         for j in range(threshold_count):
             cumulative_probabilities[i] += area_count[j]
 
-    print(cumulative_probabilities)
+    #print(cumulative_probabilities)
 
     plant_area_occupancy = []
     for i in range(6):
@@ -173,7 +173,7 @@ cap = cv2.VideoCapture('test_videos/test tracking 8.mkv')
 #cap = cv2.VideoCapture('test_video_real1.avi')
 
 # Check if a GPU is available and use it, otherwise use the CPU
-device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 #device = 'cpu'
 
@@ -185,7 +185,7 @@ model = CNNTracking7().to(device)
 model.eval()
 #checkpoint = torch.load('tracking_v5_3 31ep.pth', map_location=torch.device(device))
 #checkpoint = torch.load('tracking_v5_241 38ep.pth', map_location=torch.device(device))
-checkpoint = torch.load('model_weights/tracking_v7_31 26ep.pth', map_location=torch.device(device))
+checkpoint = torch.load('model_weights/tracking_v7_31 last.pth', map_location=torch.device(device))
 
 model.load_state_dict(checkpoint)
 
@@ -307,6 +307,8 @@ while True:
         draw_pillars(location_display, area_counts[l], unadjusted_coords[l])
         #max_val = np.argmax(area_counts[l])
         #draw_text(location_display, str(max_val), unadjusted_coords[l])
+
+    print(plant_area_occupancy)
 
     # Create a 3-channel grayscale image by replicating the single-channel grayscale
     grayscale_3channel_occupancy = cv2.merge([occupancy_map] * 3)
