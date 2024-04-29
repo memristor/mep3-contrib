@@ -8,6 +8,73 @@ from torchvision.transforms import transforms
 
 from models.cnn_tracking7_31 import CNNTracking7
 
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import Int32MultiArray
+
+total_plant_areas = 6
+occlusion_masks = []
+location_masks = []
+location_coords = []
+
+occlusion_area_threshold = 15.0
+unadjusted_plant_area_radius = 125 / 3000
+photo_mode = False
+
+# Initialize VideoCapture with your video source (0 for webcam)
+#cap = cv2.VideoCapture('r_test_tracking1.avi')
+#cap = cv2.VideoCapture('r_test_tracking2.gif')
+#cap = cv2.VideoCapture('r_test_tracking3.gif')
+#cap = cv2.VideoCapture('test tracking 5.mkv')
+#cap = cv2.VideoCapture('test tracking 6.mkv')
+#cap = cv2.VideoCapture('test tracking 7.mkv')
+cap = cv2.VideoCapture('test_videos/test tracking 8.mkv')
+#cap = cv2.VideoCapture('test_video_real1.avi')
+
+# Check if a GPU is available and use it, otherwise use the CPU
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(device)
+#device = 'cpu'
+
+board_image = cv2.imread('accessories/tabla.png')
+board_image = cv2.rotate(board_image, cv2.ROTATE_90_CLOCKWISE)
+board_image = cv2.resize(board_image, (200, 300), interpolation=cv2.INTER_AREA)
+
+model = CNNTracking7().to(device)
+model.eval()
+#checkpoint = torch.load('tracking_v5_3 31ep.pth', map_location=torch.device(device))
+#checkpoint = torch.load('tracking_v5_241 38ep.pth', map_location=torch.device(device))
+checkpoint = torch.load('model_weights/tracking_v7_31 last.pth', map_location=torch.device(device))
+
+model.load_state_dict(checkpoint)
+
+# Number of frames to skip before starting background update
+skip_count = 10
+
+frame_count = 0
+desired_fps = 9999
+frame_skip_count = math.ceil(cap.get(cv2.CAP_PROP_FPS) / desired_fps)
+print(f'Frames to skip per detection: {frame_skip_count}')
+
+masks_generated = False
+
+
+empty_counters = [0 for _ in range(total_plant_areas)]
+
+for i in range(total_plant_areas):
+    occlusion_masks.append(cv2.imread(f'occlusion_masks/occlusion_mask{i}.png', cv2.IMREAD_GRAYSCALE))
+
+running_area_counts = [np.ones(7) / 7 for _ in range(6)]
+
+unadjusted_coords = []
+unadjusted_coords.append((700 / 2000, 1000 / 3000))
+unadjusted_coords.append((1300 / 2000, 1000 / 3000))
+
+unadjusted_coords.append((500 / 2000, 1500 / 3000))
+unadjusted_coords.append((1500 / 2000, 1500 / 3000))
+
+unadjusted_coords.append((700 / 2000, 2000 / 3000))
+unadjusted_coords.append((1300 / 2000, 2000 / 3000))
 
 def crop_center(image, target_width, target_height):
     # Get the original image dimensions
@@ -161,73 +228,12 @@ def run_cnn_v6(frame, model, device):
 
     return segmentation_map, robot_coords, plant_coords, area_counts
 
+def get_plant_locations():
+    global frame_count
+    global masks_generated
+    global running_area_counts
+    global start_time
 
-# Initialize VideoCapture with your video source (0 for webcam)
-#cap = cv2.VideoCapture('r_test_tracking1.avi')
-#cap = cv2.VideoCapture('r_test_tracking2.gif')
-#cap = cv2.VideoCapture('r_test_tracking3.gif')
-#cap = cv2.VideoCapture('test tracking 5.mkv')
-#cap = cv2.VideoCapture('test tracking 6.mkv')
-#cap = cv2.VideoCapture('test tracking 7.mkv')
-cap = cv2.VideoCapture('test_videos/test tracking 8.mkv')
-#cap = cv2.VideoCapture('test_video_real1.avi')
-
-# Check if a GPU is available and use it, otherwise use the CPU
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(device)
-#device = 'cpu'
-
-board_image = cv2.imread('accessories/tabla.png')
-board_image = cv2.rotate(board_image, cv2.ROTATE_90_CLOCKWISE)
-board_image = cv2.resize(board_image, (200, 300), interpolation=cv2.INTER_AREA)
-
-model = CNNTracking7().to(device)
-model.eval()
-#checkpoint = torch.load('tracking_v5_3 31ep.pth', map_location=torch.device(device))
-#checkpoint = torch.load('tracking_v5_241 38ep.pth', map_location=torch.device(device))
-checkpoint = torch.load('model_weights/tracking_v7_31 last.pth', map_location=torch.device(device))
-
-model.load_state_dict(checkpoint)
-
-# Number of frames to skip before starting background update
-skip_count = 10
-
-frame_count = 0
-desired_fps = 9999
-frame_skip_count = math.ceil(cap.get(cv2.CAP_PROP_FPS) / desired_fps)
-print(f'Frames to skip per detection: {frame_skip_count}')
-
-occlusion_masks = []
-location_masks = []
-location_coords = []
-masks_generated = False
-
-total_plant_areas = 6
-
-empty_counters = [0 for _ in range(total_plant_areas)]
-
-for i in range(total_plant_areas):
-    occlusion_masks.append(cv2.imread(f'occlusion_masks/occlusion_mask{i}.png', cv2.IMREAD_GRAYSCALE))
-
-running_area_counts = [np.ones(7) / 7 for _ in range(6)]
-
-unadjusted_coords = []
-unadjusted_coords.append((700 / 2000, 1000 / 3000))
-unadjusted_coords.append((1300 / 2000, 1000 / 3000))
-
-unadjusted_coords.append((500 / 2000, 1500 / 3000))
-unadjusted_coords.append((1500 / 2000, 1500 / 3000))
-
-unadjusted_coords.append((700 / 2000, 2000 / 3000))
-unadjusted_coords.append((1300 / 2000, 2000 / 3000))
-
-occlusion_area_threshold = 15.0
-
-unadjusted_plant_area_radius = 125 / 3000
-
-photo_mode = False
-
-while True:
     if not photo_mode:
         ret, frame = cap.read()
     else:
@@ -243,7 +249,7 @@ while True:
 
     if frame_count < skip_count:
         frame_count += 1
-        continue
+        return [-1 for _ in range(total_plant_areas)]
     elif frame_count == skip_count:
         start_time = time.time()
 
@@ -308,7 +314,7 @@ while True:
         #max_val = np.argmax(area_counts[l])
         #draw_text(location_display, str(max_val), unadjusted_coords[l])
 
-    print(plant_area_occupancy)
+    #print(plant_area_occupancy)
 
     # Create a 3-channel grayscale image by replicating the single-channel grayscale
     grayscale_3channel_occupancy = cv2.merge([occupancy_map] * 3)
@@ -330,16 +336,33 @@ while True:
     cv2.imshow('Occupancy Map', occupancy_map)
     cv2.imshow('Plant Map', plant_map)
     cv2.imshow('Board Occupancy', board_occupancy_image)
-
-    # Skip frames based on frame_skip_count
-    if not photo_mode:
-        for _ in range(frame_skip_count - 1):
-            _ = cap.grab()  # Skip frames without decoding
-
-    if cv2.waitKey(1) & 0xFF == 27:  # Press 'Esc' to exit
-        break
-
+    cv2.waitKey(1)
     frame_count += 1
+    return plant_area_occupancy
 
-cap.release()
-cv2.destroyAllWindows()
+
+class PublishDetection(Node):
+    def __init__(self):
+        super().__init__('camera_detection')
+        self.publisher_ = self.create_publisher(Int32MultiArray, 'camera_topic', 10)
+        self.timer_ = self.create_timer(0.01, self.publish_numbers)
+        self.numbers_ = [-2, -2, -2, -2, -2, -2]
+        self.msg = Int32MultiArray()
+
+    def publish_numbers(self):
+        self.msg.data = get_plant_locations()
+        self.publisher_.publish(self.msg)
+        self.get_logger().info('Publishing: %s' % self.msg.data)
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    number_publisher = PublishDetection()
+    rclpy.spin(number_publisher)
+    number_publisher.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == "__main__":
+    main()
+    cap.release()
+    cv2.destroyAllWindows()
