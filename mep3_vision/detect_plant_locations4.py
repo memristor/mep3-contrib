@@ -21,6 +21,8 @@ occlusion_area_threshold = 15.0
 unadjusted_plant_area_radius = 125 / 3000
 photo_mode = False
 
+cap  = cv2.VideoCapture("http://192.168.8.130:4747/video")
+# cap.set(cv2.CV_CAP_PROP_BUFFERSIZE, 1)
 # Initialize VideoCapture with your video source (0 for webcam)
 #cap = cv2.VideoCapture('r_test_tracking1.avi')
 #cap = cv2.VideoCapture('r_test_tracking2.gif')
@@ -28,7 +30,7 @@ photo_mode = False
 #cap = cv2.VideoCapture('test tracking 5.mkv')
 #cap = cv2.VideoCapture('test tracking 6.mkv')
 #cap = cv2.VideoCapture('test tracking 7.mkv')
-cap = cv2.VideoCapture('test_videos/test tracking 8.mkv')
+# cap = cv2.VideoCapture('test_videos/test tracking 8.mkv')
 #cap = cv2.VideoCapture('test_video_real1.avi')
 
 # Check if a GPU is available and use it, otherwise use the CPU
@@ -52,7 +54,7 @@ model.load_state_dict(checkpoint)
 skip_count = 10
 
 frame_count = 0
-desired_fps = 9999
+desired_fps = 15
 frame_skip_count = math.ceil(cap.get(cv2.CAP_PROP_FPS) / desired_fps)
 print(f'Frames to skip per detection: {frame_skip_count}')
 
@@ -233,9 +235,11 @@ def get_plant_locations():
     global masks_generated
     global running_area_counts
     global start_time
+    global frame_skip_count
 
     if not photo_mode:
         ret, frame = cap.read()
+        frame  = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
     else:
         frame = cv2.imread('test_images/img4.jpg')
     frame_backup = frame
@@ -253,9 +257,6 @@ def get_plant_locations():
     elif frame_count == skip_count:
         start_time = time.time()
 
-    #if not ret:
-    #    print("Error reading frame.")
-    #    break
 
     segmentation_map, occupancy_map, plant_map, new_area_counts = run_cnn_v6(frame, model, device)
 
@@ -327,15 +328,20 @@ def get_plant_locations():
 
     cv2.putText(frame_backup, f'FPS: {fps:.2f}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
+    # Skip frames based on frame_skip_count
+    if not photo_mode:
+        for _ in range(frame_skip_count - 1):
+            _ = cap.grab()  # Skip frames without decoding
+
     # Display the result
     cv2.imshow('Original Frame', frame_backup)
-    cv2.imshow('Frame', frame)
-    cv2.imshow('Location Display', location_display)
-    cv2.imshow('Segmentation Map', segmentation_map)
-    cv2.imshow('Binary Segmentation Map', binary_segmentation)
-    cv2.imshow('Occupancy Map', occupancy_map)
-    cv2.imshow('Plant Map', plant_map)
-    cv2.imshow('Board Occupancy', board_occupancy_image)
+    # cv2.imshow('Frame', frame)
+    cv2.imshow('Detection result', location_display)
+    # cv2.imshow('Segmentation Map', segmentation_map)
+    # cv2.imshow('Binary Segmentation Map', binary_segmentation)
+    # cv2.imshow('Occupancy Map', occupancy_map)
+    # cv2.imshow('Plant Map', plant_map)
+    # cv2.imshow('Board Occupancy', board_occupancy_image)
     cv2.waitKey(1)
     frame_count += 1
     return plant_area_occupancy
